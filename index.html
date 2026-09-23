@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>АС Контрольних Операцій</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h2>Електронний журнал КО</h2>
+      <span id="db-indicator" class="badge offline">База не підключена</span>
+    </div>
+
+    <!-- ВИБІР СФОРМОВАНОЇ АКТИВНОЇ БАЗИ РЕМОНТУ -->
+    <div class="active-campaign-selector">
+      <label for="campaign-select">🛠 Активна база:</label>
+      <select id="campaign-select">
+        <option value="">-- Немає сформованих баз --</option>
+      </select>
+    </div>
+
+    <div class="top-nav">
+      <button class="nav-tab active" data-view="dashboard">📊 Дашборд</button>
+      <button class="nav-tab" data-view="controller">📋 Журнал контролю</button>
+      <button class="nav-tab" data-view="audit">📜 Журнал аудиту</button>
+      <button class="nav-tab hidden" data-view="admin">⚙️ Меню керівника</button>
+    </div>
+
+    <div class="header-btns">
+      <button id="btn-login-modal" class="btn btn-sm btn-secondary" title="Змінити користувача / ролю">
+        <span id="user-role-label">👁️ Гість</span>
+      </button>
+      <button id="btn-print-report" class="btn btn-sm btn-secondary" title="Друк відомості контролю">🖨️ Друк</button>
+      <button id="btn-open-db" class="btn btn-sm btn-primary" title="Вказати мережевий файл (потрібно лише 1 раз)">📁 Файл бази</button>
+      <button id="btn-sync" class="btn btn-sm btn-secondary">🔄 Оновити</button>
+      <button id="btn-export-excel" class="btn btn-sm btn-success">📥 Excel</button>
+    </div>
+  </header>
+
+  <!-- ДАШБОРД ТА АНАЛІТИКА -->
+  <main id="view-dashboard" class="app-view">
+    <div class="campaign-title-bar">
+      <h2 id="dash-campaign-title">Оберіть або сформуйте базу ремонту</h2>
+      <span id="dash-campaign-badge" class="badge-type"></span>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="card kpi-card">
+        <span class="label">Сьогодні прийнято</span>
+        <span class="val" id="kpi-today">0 к.о.</span>
+      </div>
+      <div class="card kpi-card">
+        <span class="label">Агрегатів у даній базі</span>
+        <span class="val" id="kpi-active-repairs">0</span>
+      </div>
+      <div class="card kpi-card">
+        <span class="label">Загальний прогрес контролю</span>
+        <span class="val" id="kpi-total-progress">0%</span>
+      </div>
+    </div>
+
+    <div class="dashboard-split">
+      <div class="card flex-1">
+        <h3>Останні прийняті операції (Live)</h3>
+        <div class="feed-container" id="feed-container">
+          <div class="empty-text">Немає зафіксованих операцій</div>
+        </div>
+      </div>
+      <div class="card flex-1">
+        <h3>Аналітика за працівниками (Коди 1–7)</h3>
+        <div class="emp-summary-grid" id="emp-stats-container"></div>
+      </div>
+    </div>
+
+    <div class="card mt-15">
+      <h3>Оперативний статус обладнання</h3>
+      <div class="table-responsive">
+        <table class="data-table" id="table-dashboard-status">
+          <thead>
+            <tr>
+              <th>Підрозділ</th>
+              <th>KKS</th>
+              <th>Найменування</th>
+              <th>Вид ремонту</th>
+              <th>Виконано к.о.</th>
+              <th>Прогрес</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ЖУРНАЛ КОНТРОЛЮ (СІТКА) -->
+  <main id="view-controller" class="app-view hidden">
+    <div class="toolbar">
+      <div class="filter-item">
+        <label>Напрямок:</label>
+        <select id="ctrl-filter-cat">
+          <option value="pumps">Насоси</option>
+          <option value="vessels">Посудини</option>
+          <option value="valves">Арматура</option>
+          <option value="diesels">Дизелі</option>
+          <option value="reactor">Реактор</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label>🔍 Пошук:</label>
+        <input type="text" id="ctrl-search-input" class="search-input" placeholder="KKS, назва, підрозділ...">
+      </div>
+      <span class="info-note">* Відображається тільки обладнання вибраної активної бази</span>
+    </div>
+
+    <div class="table-container">
+      <table class="grid-table" id="controller-table">
+        <thead id="ctrl-thead"></thead>
+        <tbody id="ctrl-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- ЖУРНАЛ АУДИТУ (ІСТОРІЯ ЗМІН) -->
+  <main id="view-audit" class="app-view hidden">
+    <div class="toolbar">
+      <div class="filter-item">
+        <label>🔍 Пошук в історії:</label>
+        <input type="text" id="audit-search-input" class="search-input" placeholder="KKS, назва, контролер, причина...">
+      </div>
+      <div class="filter-item">
+        <label>Тип дії:</label>
+        <select id="audit-action-filter">
+          <option value="all">Усі дії</option>
+          <option value="ACCEPT">Фіксації (Прийнято)</option>
+          <option value="DELETE">Скасування (Видалено)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📜 Повна історія контрольних операцій та змін</h3>
+      <div class="table-responsive mt-10">
+        <table class="data-table" id="table-audit-log">
+          <thead>
+            <tr>
+              <th style="width:140px;">Дата / Час</th>
+              <th>Обладнання / KKS</th>
+              <th style="width:80px;">Операція</th>
+              <th>Контролер</th>
+              <th style="width:110px;">Дія</th>
+              <th>Коментар / Причина</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- МЕНЮ КЕРІВНИКА (РЕДАГУВАННЯ ТА ФОРМУВАННЯ БАЗИ) -->
+  <main id="view-admin" class="app-view hidden">
+    <div class="admin-panel">
+      <!-- Ліва колонка: Вибір і редагування обладнання -->
+      <div class="card flex-1">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="adm-mode-title">1. Редагування складу обладнання</h3>
+          <span id="adm-edit-badge" class="badge online">Режим редагування</span>
+        </div>
+        
+        <div class="form-row mt-10">
+          <label>Назва ремонтної бази:</label>
+          <input type="text" id="adm-campaign-name" placeholder="Введіть назву бази">
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <div class="form-row flex-1">
+            <label>Енергоблок:</label>
+            <select id="adm-unit-select">
+              <option value="3">Блок №3</option>
+              <option value="4">Блок №4</option>
+              <option value="1">Блок №1</option>
+              <option value="2">Блок №2</option>
+            </select>
+          </div>
+          <div class="form-row flex-1">
+            <label>Тип ремонтної кампанії бази:</label>
+            <!-- Тільки Поточний або Капітальний -->
+            <select id="adm-repair-type">
+              <option value="ПР">Поточний ремонт (ПР)</option>
+              <option value="СР">Середній ремонт (КР)</option>
+            </select>
+          </div>
+        </div>
+
+        <h4 class="mt-15">Штатний каталог обладнання:</h4>
+        <div class="toolbar mt-10 mb-10">
+          <select id="adm-cat-select">
+            <option value="pumps">Насоси</option>
+            <option value="vessels">Посудини</option>
+            <option value="valves">Арматура</option>
+            <option value="diesels">Дизелі</option>
+            <option value="reactor">Реактор</option>
+          </select>
+          <input type="text" id="adm-search-input" class="search-input" placeholder="🔍 Пошук каталогу..." style="max-width:180px;">
+          <div style="display:flex; gap:6px;">
+            <button id="btn-select-all" class="btn btn-sm btn-secondary">Виділити всі</button>
+            <button id="btn-deselect-all" class="btn btn-sm btn-secondary">Зняти всі</button>
+          </div>
+        </div>
+
+        <div class="catalog-selector-box" id="adm-catalog-list"></div>
+
+        <!-- Кнопки управління: зберегти зміни або створити нову -->
+        <div style="display:flex; gap:10px; margin-top:15px;">
+          <button id="btn-save-campaign-changes" class="btn btn-primary flex-1">
+            💾 Зберегти зміни в поточній базі
+          </button>
+          <button id="btn-create-new-campaign" class="btn btn-secondary" title="Створити нову окрему кампанію">
+            ➕ Створити нову базу
+          </button>
+        </div>
+      </div>
+
+      <!-- Права колонка: Список обладнання в поточній базі та список баз -->
+      <div class="card flex-1">
+        <h3>2. Обладнання, яке вже входить у поточну базу (<span id="adm-current-count">0</span>)</h3>
+        <div class="active-repairs-manager" id="adm-active-repairs-list" style="max-height: 250px; overflow-y: auto;"></div>
+
+        <h3 class="mt-20">3. Усі сформовані активні бази</h3>
+        <div class="campaign-manager-list" id="adm-active-campaigns-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ВІКНО ВІДМІТКИ К.О. -->
+  <div id="modal-check" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 id="modal-eq-name">Обладнання</h3>
+      <p id="modal-op-title" class="text-muted"></p>
+      
+      <div class="form-row">
+        <label>Дата виконання:</label>
+        <input type="date" id="entry-date">
+      </div>
+
+      <div class="form-row">
+        <label>Працівник (1–7):</label>
+        <div class="emp-btn-grid" id="modal-emp-grid"></div>
+        <input type="hidden" id="selected-emp-code">
+      </div>
+
+      <div class="form-row hidden mt-10" id="del-reason-box">
+        <label style="color:#dc2626; font-weight:bold;">Причина скасування/видалення:</label>
+        <input type="text" id="del-reason-input" placeholder="Вкажіть причину вилучення відмітки...">
+      </div>
+
+      <div class="modal-foot">
+        <button id="btn-save-check" class="btn btn-primary" disabled>Зберегти</button>
+        <button id="btn-del-check" class="btn btn-danger hidden">Видалити</button>
+        <button id="btn-close-modal" class="btn btn-secondary">Закрити</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ВІКНО АВТОРИЗАЦІЇ ТА ЗМІНИ РОЛІ -->
+  <div id="modal-auth" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>🔐 Авторизація користувача</h3>
+      <p class="text-muted" style="font-size:0.8rem; margin-bottom:10px;">Оберіть вашу роль та введіть PIN-код для підтвердження</p>
+
+      <div class="form-row">
+        <label>Роль користувача:</label>
+        <select id="auth-role-select">
+          <option value="viewer">👁️ Гість / Спостерігач (Тільки перегляд)</option>
+          <option value="controller">📋 Контролер (Фіксація КО)</option>
+          <option value="admin">⚙️ Адміністратор / Керівник</option>
+        </select>
+      </div>
+
+      <div class="form-row hidden" id="auth-emp-select-row">
+        <label>Оберіть контролера:</label>
+        <select id="auth-emp-select">
+          <option value="1">1. Савчук Ю.А.</option>
+          <option value="2">2. Мушик В.Ф.</option>
+          <option value="3">3. Оніщук В.Ю.</option>
+          <option value="4">4. Сидорчук С.В.</option>
+          <option value="5">5. Радчук І.С.</option>
+          <option value="6">6. Рошук П.М.</option>
+          <option value="7">7. Дацький Д.П.</option>
+        </select>
+      </div>
+
+      <div class="form-row hidden" id="auth-pin-row">
+        <label>PIN-код підтвердження:</label>
+        <input type="password" id="auth-pin-input" placeholder="Введіть PIN (напр. 1234 або 1111)">
+      </div>
+
+      <div class="modal-foot">
+        <button id="btn-submit-auth" class="btn btn-primary">Увійти</button>
+        <button id="btn-close-auth" class="btn btn-secondary">Скасувати</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/catalog.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/controller_view.js"></script>
+  <script src="js/audit_view.js"></script>
+  <script src="js/admin_view.js"></script>
+  <script src="js/export_archive.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

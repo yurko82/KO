@@ -1,0 +1,10 @@
+{
+  "name": "Електронний журнал КО",
+  "short_name": "Журнал КО",
+  "description": "Автоматизована система контрольних операцій енергоблоків ВВЕР-440 / ВВЕР-1000",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": []
+}
